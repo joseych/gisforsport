@@ -1,0 +1,1184 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#0d6efd">
+  <title>Running Tracker</title>
+
+  <!-- Bootstrap -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- Leaflet -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+  <!-- Font Awesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <style>
+    :root {
+      --primary-color: #0d6efd;
+      --secondary-color: #6c757d;
+      --success-color: #198754;
+      --dark-bg: #121212;
+      --dark-card: #1e1e1e;
+      --dark-text: #e0e0e0;
+    }
+    
+    body, html { 
+      height: 100%; 
+      margin: 0; 
+      overflow-x: hidden;
+      font-family: 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+      transition: background-color 0.3s;
+    }
+    
+    body.dark-mode {
+      background-color: var(--dark-bg);
+      color: var(--dark-text);
+    }
+    
+    #map { 
+      height: 50vh; 
+      width: 100%; 
+      z-index: 1;
+    }
+    
+    .stats-card {
+      border-radius: 15px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      margin-bottom: 1rem;
+      border: none;
+      background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+      transition: all 0.3s;
+    }
+    
+    .dark-mode .stats-card {
+      background: linear-gradient(135deg, var(--dark-card) 0%, #2a2a2a 100%);
+      color: var(--dark-text);
+    }
+    
+    .stats-card h6 {
+      color: var(--secondary-color);
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+    
+    .dark-mode .stats-card h6 {
+      color: #a0a0a0;
+    }
+    
+    .stats-card h3 {
+      color: var(--primary-color);
+      font-weight: 700;
+      margin: 0.5rem 0 0 0;
+    }
+    
+    .dark-mode .stats-card h3 {
+      color: #4d8eff;
+    }
+    
+    /* Marcador de posición con animación */
+    .pulse-dot {
+      width: 20px;
+      height: 20px;
+      background: var(--primary-color);
+      border-radius: 50%;
+      box-shadow: 0 0 10px rgba(13,110,253,0.6);
+      animation: pulse 1.5s infinite;
+    }
+    
+    .dark-mode .pulse-dot {
+      background: #4d8eff;
+      box-shadow: 0 0 10px rgba(77, 142, 255, 0.6);
+    }
+    
+    /* Menú lateral */
+    .side-menu {
+      position: fixed;
+      top: 0;
+      right: -300px;
+      width: 300px;
+      height: 100%;
+      background: white;
+      box-shadow: -5px 0 25px rgba(0,0,0,0.15);
+      z-index: 1000;
+      padding: 20px;
+      overflow-y: auto;
+      transition: right 0.4s cubic-bezier(0.23, 1, 0.32, 1);
+    }
+    
+    .dark-mode .side-menu {
+      background: var(--dark-card);
+      color: var(--dark-text);
+    }
+    
+    .side-menu.open {
+      right: 0;
+    }
+    
+    .menu-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.5);
+      z-index: 999;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.3s ease, visibility 0.3s ease;
+    }
+    
+    .menu-overlay.active {
+      opacity: 1;
+      visibility: visible;
+    }
+    
+    /* Botón de menú */
+    .menu-btn {
+      position: fixed;
+      top: 15px;
+      right: 15px;
+      z-index: 1001;
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      background: var(--primary-color);
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 12px rgba(13, 110, 253, 0.3);
+      cursor: pointer;
+      border: none;
+    }
+    
+    /* Animaciones */
+    @keyframes pulse {
+      0% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.2); opacity: 0.7; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+    
+    @keyframes pulse-animation {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.05); }
+      100% { transform: scale(1); }
+    }
+    
+    @keyframes celebrate {
+      0% { transform: translateY(0) rotate(0); }
+      25% { transform: translateY(-10px) rotate(5deg); }
+      50% { transform: translateY(0) rotate(0); }
+      75% { transform: translateY(-10px) rotate(-5deg); }
+      100% { transform: translateY(0) rotate(0); }
+    }
+    
+    @keyframes goal-celebration {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.2); }
+      100% { transform: scale(1); }
+    }
+    
+    .pulse-animation {
+      animation: pulse-animation 0.5s ease-in-out;
+    }
+    
+    .celebrate-animation {
+      animation: celebrate 0.6s ease-in-out;
+    }
+    
+    .goal-celebration {
+      animation: goal-celebration 0.5s ease-in-out 3;
+    }
+    
+    /* Elementos de la interfaz */
+    .control-panel {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 800;
+      display: flex;
+      gap: 15px;
+      background: rgba(255, 255, 255, 0.9);
+      padding: 10px;
+      border-radius: 50px;
+      box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+      transition: background 0.3s;
+    }
+    
+    .dark-mode .control-panel {
+      background: rgba(30, 30, 30, 0.9);
+    }
+    
+    .control-btn {
+      width: 60px;
+      height: 60px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.5rem;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+      border: none;
+      transition: all 0.2s ease;
+    }
+    
+    .control-btn:active {
+      transform: scale(0.95);
+    }
+    
+    .loading-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: white;
+      z-index: 2000;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      transition: opacity 0.5s ease;
+    }
+    
+    .dark-mode .loading-overlay {
+      background: var(--dark-bg);
+      color: var(--dark-text);
+    }
+    
+    .loading-spinner {
+      width: 50px;
+      height: 50px;
+      border: 5px solid #f3f3f3;
+      border-top: 5px solid var(--primary-color);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin-bottom: 20px;
+    }
+    
+    .dark-mode .loading-spinner {
+      border: 5px solid #2a2a2a;
+      border-top: 5px solid #4d8eff;
+    }
+    
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    
+    .toast-notification {
+      position: fixed;
+      top: 80px;
+      right: 20px;
+      z-index: 2000;
+      min-width: 250px;
+    }
+    
+    /* Ajustes para modo sin conexión */
+    .offline-indicator {
+      position: fixed;
+      top: 15px;
+      left: 15px;
+      background: #6c757d;
+      color: white;
+      padding: 5px 10px;
+      border-radius: 20px;
+      font-size: 0.75rem;
+      z-index: 1001;
+      display: none;
+    }
+    
+    /* Modo oscuro para el mapa */
+    .dark-mode .leaflet-layer,
+    .dark-mode .leaflet-control-zoom-in,
+    .dark-mode .leaflet-control-zoom-out,
+    .dark-mode .leaflet-control-attribution {
+      filter: invert(1) hue-rotate(180deg) brightness(0.9) contrast(0.9);
+    }
+    
+    /* Selector de tema */
+    .theme-switch {
+      position: fixed;
+      top: 15px;
+      left: 15px;
+      z-index: 1001;
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      background: #f8f9fa;
+      color: #495057;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      cursor: pointer;
+      border: none;
+    }
+    
+    .dark-mode .theme-switch {
+      background: #2a2a2a;
+      color: #e0e0e0;
+    }
+  </style>
+</head>
+<body class="bg-light">
+  <!-- Overlay de carga -->
+  <div class="loading-overlay" id="loadingOverlay">
+    <div class="loading-spinner"></div>
+    <p>Cargando mapa para uso sin conexión...</p>
+    <div class="progress mt-3" style="width: 80%; max-width: 300px;">
+      <div id="loadingProgress" class="progress-bar" role="progressbar" style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+    </div>
+  </div>
+
+  <!-- Indicador de modo sin conexión -->
+  <div class="offline-indicator" id="offlineIndicator">
+    <i class="fas fa-wifi-slash me-1"></i> Modo sin conexión
+  </div>
+
+  <!-- Selector de tema -->
+  <button class="theme-switch" id="themeSwitch">
+    <i class="fas fa-moon"></i>
+  </button>
+
+  <!-- Botón de menú -->
+  <button class="menu-btn" id="menuButton">
+    <i class="fas fa-bars"></i>
+  </button>
+
+  <!-- Overlay del menú -->
+  <div class="menu-overlay" id="menuOverlay"></div>
+
+  <!-- Menú lateral -->
+  <div class="side-menu" id="sideMenu">
+    <h4 class="mb-4"><i class="fas fa-running me-2"></i>Opciones</h4>
+    
+    <div class="mb-3">
+      <label class="form-label">Tipo de Entrenamiento</label>
+      <select class="form-select" id="trainingType">
+        <option value="running">Running</option>
+        <option value="cycling">Ciclismo</option>
+        <option value="walking">Caminata</option>
+      </select>
+    </div>
+    
+    <div class="mb-3">
+      <label class="form-label">Objetivo (km)</label>
+      <input type="number" class="form-control" id="distanceGoal" value="5" min="1">
+    </div>
+    
+    <div class="mb-3">
+      <label class="form-label">Frecuencia de notificaciones</label>
+      <select class="form-select" id="notificationFrequency">
+        <option value="1">Cada 1 km</option>
+        <option value="2">Cada 2 km</option>
+        <option value="5">Cada 5 km</option>
+      </select>
+    </div>
+    
+    <div class="mb-3 form-check form-switch">
+      <input class="form-check-input" type="checkbox" id="vibrationEnabled" checked>
+      <label class="form-check-label" for="vibrationEnabled">Vibración al completar km</label>
+    </div>
+    
+    <div class="mb-3 form-check form-switch">
+      <input class="form-check-input" type="checkbox" id="goalNotificationEnabled" checked>
+      <label class="form-check-label" for="goalNotificationEnabled">Notificar al alcanzar objetivo</label>
+    </div>
+    
+    <hr>
+    
+    <h5><i class="fas fa-history me-2"></i>Historial</h5>
+    <div id="historyList" class="small">
+      <p class="text-muted">No hay registros previos</p>
+    </div>
+    
+    <div class="mt-3 d-grid gap-2">
+      <button class="btn btn-outline-primary" id="exportBtn">
+        <i class="fas fa-download me-2"></i> Exportar datos
+      </button>
+      <button class="btn btn-danger" id="resetBtn">
+        <i class="fas fa-trash-alt me-2"></i> Reiniciar
+      </button>
+    </div>
+  </div>
+
+  <div class="container-fluid p-0">
+    <!-- MAPA -->
+    <div id="map"></div>
+
+    <!-- PANEL DE ESTADÍSTICAS -->
+    <div class="container mt-3">
+      <div class="row row-cols-2 g-3">
+        <div class="col">
+          <div class="card stats-card text-center p-3">
+            <h6><i class="fas fa-route me-2"></i>Distancia</h6>
+            <h3 id="distance">0.00 km</h3>
+          </div>
+        </div>
+        <div class="col">
+          <div class="card stats-card text-center p-3">
+            <h6><i class="fas fa-tachometer-alt me-2"></i>Velocidad</h6>
+            <h3 id="speed">0 km/h</h3>
+          </div>
+        </div>
+        <div class="col">
+          <div class="card stats-card text-center p-3">
+            <h6><i class="fas fa-clock me-2"></i>Tiempo</h6>
+            <h3 id="time">00:00:00</h3>
+          </div>
+        </div>
+        <div class="col">
+          <div class="card stats-card text-center p-3">
+            <h6><i class="fas fa-running me-2"></i>Ritmo</h6>
+            <h3 id="pace">0:00 /km</h3>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Panel de control -->
+  <div class="control-panel">
+    <button class="control-btn btn-success" id="startBtn">
+      <i class="fas fa-play"></i>
+    </button>
+    <button class="control-btn btn-warning" id="pauseBtn" disabled>
+      <i class="fas fa-pause"></i>
+    </button>
+    <button class="control-btn btn-danger" id="stopBtn" disabled>
+      <i class="fas fa-stop"></i>
+    </button>
+  </div>
+
+  <!-- Bootstrap JS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <!-- Leaflet Offline -->
+  <script src="https://unpkg.com/leaflet.offline@1.4.0/dist/leaflet.offline.min.js"></script>
+
+  <script>
+    // Variables globales
+    let map, routeLine, currentLocationMarker, routeCoords = [];
+    let distance = 0;
+    let lastMarkerKm = 0;
+    let startTime = 0;
+    let elapsedTime = 0;
+    let timerInterval = null;
+    let isTracking = false;
+    let isPaused = false;
+    let watchId = null;
+    let notificationFrequency = 1;
+    let tileLayer;
+    let isOnline = true;
+    let distanceGoal = 5;
+    let goalReached = false;
+
+    // Inicializar la aplicación
+    function initApp() {
+      initMap();
+      setupMenu();
+      setupControlButtons();
+      checkOnlineStatus();
+      updateHistoryList();
+      
+      // Precachear mapas para área de 7km a la redonda
+      precacheMapTiles();
+    }
+
+    // Inicializar mapa
+    function initMap() {
+      map = L.map('map', {
+        zoomControl: false
+      });
+      
+      // Añadir control de zoom
+      L.control.zoom({
+        position: 'bottomright'
+      }).addTo(map);
+      
+      // Crear capa de mapa base
+      tileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+      }).addTo(map);
+      
+      // Configurar localización
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(pos => {
+          const lat = pos.coords.latitude;
+          const lon = pos.coords.longitude;
+          map.setView([lat, lon], 16);
+          
+          // Añadir marcador de posición actual
+          currentLocationMarker = L.marker([lat, lon], {
+            icon: L.divIcon({
+              html: '<div class="pulse-dot"></div>',
+              className: 'pulse-marker',
+              iconSize: [20, 20]
+            })
+          }).addTo(map);
+        }, () => {
+          // Fallback si no se puede obtener la ubicación
+          map.setView([-14.8347, -64.901], 15);
+        }, {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 0
+        });
+      } else {
+        map.setView([-14.8347, -64.901], 15);
+      }
+
+      // Inicializar línea de ruta
+      routeLine = L.polyline([], { 
+        color: "#0d6efd", 
+        weight: 5,
+        lineJoin: 'round',
+        lineCap: 'round'
+      }).addTo(map);
+    }
+
+    // Precachado de mapas para área de 7km
+    function precacheMapTiles() {
+      const progressElement = document.getElementById('loadingProgress');
+      const loadingOverlay = document.getElementById('loadingOverlay');
+      
+      if (!navigator.geolocation) {
+        loadingOverlay.style.display = 'none';
+        return;
+      }
+      
+      navigator.geolocation.getCurrentPosition(position => {
+        const center = [position.coords.latitude, position.coords.longitude];
+        const radius = 7; // 7km de radio
+        
+        // Calcular bounds para el área de 7km
+        const bounds = calculateBounds(center[0], center[1], radius);
+        
+        // Crear controlador de almacenamiento de mapas
+        const storage = new L.Offline.Storage(tileLayer, {
+          length: function(e) {
+            console.log('Total de tiles a descargar:', e);
+          },
+          done: function(e) {
+            console.log('Todos los tiles descargados');
+            setTimeout(() => {
+              loadingOverlay.style.opacity = '0';
+              setTimeout(() => {
+                loadingOverlay.style.display = 'none';
+              }, 500);
+            }, 500);
+          },
+          progress: function(loaded, total) {
+            const percent = (loaded / total) * 100;
+            progressElement.style.width = percent + '%';
+            progressElement.setAttribute('aria-valuenow', percent);
+          }
+        });
+        
+        // Precachar el área (limitamos a zoom 14 para que sea más rápido)
+        storage.addArea(bounds, 13, 14);
+      }, () => {
+        loadingOverlay.style.display = 'none';
+        showToast('No se pudo precargar el mapa para uso sin conexión', 'warning');
+      });
+    }
+    
+    // Calcular bounds para un radio determinado
+    function calculateBounds(lat, lng, radiusKm) {
+      const earthRadius = 6371; // Radio de la Tierra en km
+      const latDelta = (radiusKm / earthRadius) * (180 / Math.PI);
+      const lngDelta = (radiusKm / earthRadius) * (180 / Math.PI) / Math.cos(lat * Math.PI/180);
+      
+      return [
+        [lat - latDelta, lng - lngDelta],
+        [lat + latDelta, lng + lngDelta]
+      ];
+    }
+
+    // Verificar estado de conexión
+    function checkOnlineStatus() {
+      isOnline = navigator.onLine;
+      const offlineIndicator = document.getElementById('offlineIndicator');
+      
+      if (!isOnline) {
+        offlineIndicator.style.display = 'block';
+        showToast('Modo sin conexión activado', 'info');
+      }
+      
+      window.addEventListener('online', () => {
+        isOnline = true;
+        offlineIndicator.style.display = 'none';
+        showToast('Conexión restablecida', 'success');
+      });
+      
+      window.addEventListener('offline', () => {
+        isOnline = false;
+        offlineIndicator.style.display = 'block';
+        showToast('Modo sin conexión activado', 'info');
+      });
+    }
+
+    // Iniciar el temporizador
+    function startTimer() {
+      if (isPaused) {
+        // Reanudar desde pausa
+        startTime = Date.now() - elapsedTime;
+      } else {
+        // Iniciar desde cero
+        startTime = Date.now();
+        elapsedTime = 0;
+      }
+      
+      timerInterval = setInterval(updateTimer, 1000);
+    }
+
+    // Actualizar el temporizador
+    function updateTimer() {
+      elapsedTime = Date.now() - startTime;
+      const seconds = Math.floor(elapsedTime / 1000);
+      const hours = Math.floor(seconds / 3600);
+      const minutes = Math.floor((seconds % 3600) / 60);
+      const secs = seconds % 60;
+      
+      document.getElementById("time").textContent = 
+        `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+      
+      // Actualizar ritmo
+      updatePace(seconds);
+    }
+
+    // Actualizar ritmo (min/km)
+    function updatePace(seconds) {
+      if (distance > 0.01) { // Evitar división por cero
+        const paceMinKm = seconds / distance / 60;
+        const paceMin = Math.floor(paceMinKm);
+        const paceSec = Math.floor((paceMinKm - paceMin) * 60);
+        document.getElementById("pace").textContent = 
+          `${paceMin}:${paceSec.toString().padStart(2, '0')} /km`;
+      }
+    }
+
+    // Detener el temporizador
+    function stopTimer() {
+      clearInterval(timerInterval);
+    }
+
+    // Tracking en tiempo real
+    function startTracking() {
+      if (!isTracking) return;
+      
+      const options = {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0
+      };
+      
+      watchId = navigator.geolocation.watchPosition(
+        pos => {
+          const lat = pos.coords.latitude;
+          const lon = pos.coords.longitude;
+          const speed = pos.coords.speed ? (pos.coords.speed * 3.6).toFixed(1) : '0.0';
+
+          // Actualizar marcador de posición actual
+          if (currentLocationMarker) {
+            currentLocationMarker.setLatLng([lat, lon]);
+          } else {
+            currentLocationMarker = L.marker([lat, lon], {
+              icon: L.divIcon({
+                html: '<div class="pulse-dot"></div>',
+                className: 'pulse-marker',
+                iconSize: [20, 20]
+              })
+            }).addTo(map);
+          }
+
+          const newPoint = [lat, lon];
+          
+          // Calcular distancia recorrida
+          if (routeCoords.length > 0) {
+            const prev = routeCoords[routeCoords.length - 1];
+            const segmentDistance = getDistance(prev, newPoint);
+            distance += segmentDistance;
+            document.getElementById("distance").textContent = distance.toFixed(2) + " km";
+          }
+          
+          routeCoords.push(newPoint);
+          routeLine.setLatLngs(routeCoords);
+          map.setView(newPoint, map.getZoom());
+
+          // Mostrar velocidad
+          document.getElementById("speed").textContent = speed + " km/h";
+
+          // Marcar según la frecuencia configurada
+          if (Math.floor(distance / notificationFrequency) > lastMarkerKm) {
+            lastMarkerKm = Math.floor(distance / notificationFrequency);
+            const marker = L.marker(newPoint).addTo(map);
+            marker.bindPopup(`${lastMarkerKm * notificationFrequency} km`).openPopup();
+            
+            // Animación de celebración
+            celebrateAchievement(lastMarkerKm * notificationFrequency);
+            
+            // Vibración en móvil si está habilitada
+            if (document.getElementById('vibrationEnabled').checked && "vibrate" in navigator) {
+              navigator.vibrate([200, 100, 200]);
+            }
+          }
+          
+          // Verificar si se alcanzó el objetivo
+          if (!goalReached && distance >= distanceGoal && document.getElementById('goalNotificationEnabled').checked) {
+            goalReached = true;
+            celebrateGoalAchievement();
+          }
+        },
+        error => {
+          console.error("Error en geolocalización:", error);
+          showToast('Error de GPS: ' + error.message, 'danger');
+        },
+        options
+      );
+    }
+
+    // Animación al completar un kilómetro
+    function celebrateAchievement(km) {
+      // Animación en las tarjetas de estadísticas
+      const statsCards = document.querySelectorAll('.stats-card');
+      statsCards.forEach(card => {
+        card.classList.add('pulse-animation');
+        setTimeout(() => {
+          card.classList.remove('pulse-animation');
+        }, 500);
+      });
+      
+      // Notificación visual
+      showToast(`¡Has alcanzado ${km} km! 🎉`, 'success');
+    }
+    
+    // Animación al alcanzar el objetivo
+    function celebrateGoalAchievement() {
+      // Animación especial
+      const statsCards = document.querySelectorAll('.stats-card');
+      statsCards.forEach(card => {
+        card.classList.add('goal-celebration');
+        setTimeout(() => {
+          card.classList.remove('goal-celebration');
+        }, 1500);
+      });
+      
+      // Notificación especial
+      showToast(`🎉 ¡OBJETIVO ALCANZADO! ${distanceGoal} km completados 🎉`, 'success');
+      
+      // Vibración especial si está habilitada
+      if (document.getElementById('vibrationEnabled').checked && "vibrate" in navigator) {
+        navigator.vibrate([300, 100, 300, 100, 300]);
+      }
+    }
+
+    // Haversine para distancia
+    function getDistance(p1, p2) {
+      const R = 6371; // km
+      const dLat = toRad(p2[0] - p1[0]);
+      const dLon = toRad(p2[1] - p1[1]);
+      const lat1 = toRad(p1[0]);
+      const lat2 = toRad(p2[0]);
+
+      const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                Math.sin(dLon/2) * Math.sin(dLon/2) * Math.cos(lat1) * Math.cos(lat2); 
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
+      return R * c;
+    }
+
+    function toRad(deg) {
+      return deg * Math.PI / 180;
+    }
+
+    // Mostrar notificación toast
+    function showToast(message, type = 'info') {
+      // Eliminar toast existente si hay uno
+      const existingToast = document.querySelector('.toast-notification');
+      if (existingToast) {
+        existingToast.remove();
+      }
+      
+      const toast = document.createElement('div');
+      toast.className = `toast-notification alert alert-${type} alert-dismissible fade show`;
+      toast.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+      `;
+      
+      document.body.appendChild(toast);
+      
+      // Auto-eliminar después de 3 segundos
+      setTimeout(() => {
+        if (toast.parentNode) {
+          toast.remove();
+        }
+      }, 3000);
+    }
+
+    // Manejo del menú lateral
+    function setupMenu() {
+      const menuButton = document.getElementById('menuButton');
+      const sideMenu = document.getElementById('sideMenu');
+      const menuOverlay = document.getElementById('menuOverlay');
+      
+      menuButton.addEventListener('click', function() {
+        sideMenu.classList.toggle('open');
+        menuOverlay.classList.toggle('active');
+      });
+      
+      menuOverlay.addEventListener('click', function() {
+        sideMenu.classList.remove('open');
+        menuOverlay.classList.remove('active');
+      });
+      
+      // Configurar frecuencia de notificación
+      const notificationSelect = document.getElementById('notificationFrequency');
+      notificationSelect.addEventListener('change', function() {
+        notificationFrequency = parseInt(this.value);
+      });
+      
+      // Configurar objetivo de distancia
+      const distanceGoalInput = document.getElementById('distanceGoal');
+      distanceGoalInput.addEventListener('change', function() {
+        distanceGoal = parseFloat(this.value);
+        goalReached = false;
+      });
+      
+      // Botón de reinicio
+      document.getElementById('resetBtn').addEventListener('click', function() {
+        if (confirm("¿Estás seguro de que quieres reiniciar la actividad? Se perderán todos los datos.")) {
+          resetActivity();
+        }
+      });
+      
+      // Botón de exportación
+      document.getElementById('exportBtn').addEventListener('click', function() {
+        showExportOptions();
+      });
+      
+      // Selector de tema
+      document.getElementById('themeSwitch').addEventListener('click', function() {
+        toggleDarkMode();
+      });
+    }
+    
+    // Alternar modo oscuro
+    function toggleDarkMode() {
+      const body = document.body;
+      const themeIcon = document.querySelector('#themeSwitch i');
+      
+      if (body.classList.contains('dark-mode')) {
+        body.classList.remove('dark-mode');
+        themeIcon.classList.remove('fa-sun');
+        themeIcon.classList.add('fa-moon');
+        localStorage.setItem('darkMode', 'false');
+      } else {
+        body.classList.add('dark-mode');
+        themeIcon.classList.remove('fa-moon');
+        themeIcon.classList.add('fa-sun');
+        localStorage.setItem('darkMode', 'true');
+      }
+    }
+    
+    // Mostrar opciones de exportación
+    function showExportOptions() {
+      if (routeCoords.length === 0) {
+        showToast('No hay datos para exportar', 'warning');
+        return;
+      }
+      
+      const exportOptions = `
+        <div class="mb-3">
+          <label class="form-label">Formato de exportación</label>
+          <select class="form-select" id="exportFormat">
+            <option value="json">JSON</option>
+            <option value="gpx">GPX (compatible con Strava/Garmin)</option>
+            <option value="csv">CSV</option>
+          </select>
+        </div>
+        <div class="d-grid gap-2">
+          <button class="btn btn-primary" id="confirmExportBtn">
+            <i class="fas fa-download me-2"></i> Exportar
+          </button>
+        </div>
+      `;
+      
+      // Crear modal de exportación
+      const exportModal = document.createElement('div');
+      exportModal.className = 'modal fade';
+      exportModal.innerHTML = `
+        <div class="modal-dialog">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title">Exportar datos</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+              ${exportOptions}
+            </div>
+          </div>
+        </div>
+      `;
+      
+      document.body.appendChild(exportModal);
+      
+      const modal = new bootstrap.Modal(exportModal);
+      modal.show();
+      
+      // Configurar evento de exportación
+      exportModal.querySelector('#confirmExportBtn').addEventListener('click', function() {
+        const format = exportModal.querySelector('#exportFormat').value;
+        exportData(format);
+        modal.hide();
+        setTimeout(() => exportModal.remove(), 500);
+      });
+      
+      // Eliminar modal al cerrar
+      exportModal.addEventListener('hidden.bs.modal', function() {
+        exportModal.remove();
+      });
+    }
+
+    // Reiniciar actividad
+    function resetActivity() {
+      // Detener tracking
+      isTracking = false;
+      isPaused = false;
+      stopTimer();
+      
+      if (watchId !== null) {
+        navigator.geolocation.clearWatch(watchId);
+        watchId = null;
+      }
+      
+      // Reiniciar variables
+      distance = 0;
+      lastMarkerKm = 0;
+      routeCoords = [];
+      elapsedTime = 0;
+      goalReached = false;
+      
+      // Actualizar UI
+      document.getElementById("distance").textContent = "0.00 km";
+      document.getElementById("speed").textContent = "0 km/h";
+      document.getElementById("time").textContent = "00:00:00";
+      document.getElementById("pace").textContent = "0:00 /km";
+      
+      // Limpiar mapa
+      map.eachLayer(layer => {
+        if (layer instanceof L.Marker && layer !== currentLocationMarker) {
+          map.removeLayer(layer);
+        }
+      });
+      
+      // Reiniciar línea de ruta
+      routeLine.setLatLngs([]);
+      
+      // Actualizar botones
+      document.getElementById('startBtn').disabled = false;
+      document.getElementById('pauseBtn').disabled = true;
+      document.getElementById('stopBtn').disabled = true;
+      document.getElementById('pauseBtn').innerHTML = '<i class="fas fa-pause"></i>';
+      
+      showToast('Actividad reiniciada', 'info');
+    }
+
+    // Exportar datos
+    function exportData(format) {
+      if (routeCoords.length === 0) {
+        showToast('No hay datos para exportar', 'warning');
+        return;
+      }
+      
+      let dataStr, filename, mimeType;
+      const date = new Date().toISOString().slice(0, 10);
+      
+      if (format === 'json') {
+        const data = {
+          type: document.getElementById('trainingType').value,
+          distance: distance,
+          time: document.getElementById('time').textContent,
+          coordinates: routeCoords,
+          date: new Date().toISOString()
+        };
+        
+        dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(data, null, 2));
+        filename = `running_data_${date}.json`;
+        mimeType = 'application/json';
+      } 
+      else if (format === 'gpx') {
+        // Convertir a formato GPX
+        let gpx = `<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="Running Tracker" xmlns="http://www.topografix.com/GPX/1/1">
+  <trk>
+    <name>Running Activity ${date}</name>
+    <trkseg>
+`;
+        
+        routeCoords.forEach(coord => {
+          gpx += `      <trkpt lat="${coord[0]}" lon="${coord[1]}"></trkpt>\n`;
+        });
+        
+        gpx += `    </trkseg>
+  </trk>
+</gpx>`;
+        
+        dataStr = "data:application/gpx+xml;charset=utf-8," + encodeURIComponent(gpx);
+        filename = `running_data_${date}.gpx`;
+        mimeType = 'application/gpx+xml';
+      }
+      else if (format === 'csv') {
+        // Convertir a formato CSV
+        let csv = "lat,lon\n";
+        routeCoords.forEach(coord => {
+          csv += `${coord[0]},${coord[1]}\n`;
+        });
+        
+        dataStr = "data:text/csv;charset=utf-8," + encodeURIComponent(csv);
+        filename = `running_data_${date}.csv`;
+        mimeType = 'text/csv';
+      }
+      
+      const downloadAnchorNode = document.createElement('a');
+      downloadAnchorNode.setAttribute("href", dataStr);
+      downloadAnchorNode.setAttribute("download", filename);
+      document.body.appendChild(downloadAnchorNode);
+      downloadAnchorNode.click();
+      downloadAnchorNode.remove();
+      
+      showToast(`Datos exportados como ${format.toUpperCase()}`, 'success');
+    }
+
+    // Configurar botones de control
+    function setupControlButtons() {
+      document.getElementById('startBtn').addEventListener('click', function() {
+        isTracking = true;
+        isPaused = false;
+        startTimer();
+        startTracking();
+        
+        // Actualizar botones
+        this.disabled = true;
+        document.getElementById('pauseBtn').disabled = false;
+        document.getElementById('stopBtn').disabled = false;
+        
+        showToast('Comenzando seguimiento...', 'success');
+      });
+      
+      document.getElementById('pauseBtn').addEventListener('click', function() {
+        if (isTracking) {
+          // Pausar
+          isTracking = false;
+          isPaused = true;
+          stopTimer();
+          if (watchId !== null) {
+            navigator.geolocation.clearWatch(watchId);
+            watchId = null;
+          }
+          this.innerHTML = '<i class="fas fa-play"></i>';
+          showToast('Seguimiento en pausa', 'warning');
+        } else {
+          // Reanudar
+          isTracking = true;
+          isPaused = false;
+          startTimer();
+          startTracking();
+          this.innerHTML = '<i class="fas fa-pause"></i>';
+          showToast('Reanudando seguimiento...', 'info');
+        }
+      });
+      
+      document.getElementById('stopBtn').addEventListener('click', function() {
+        isTracking = false;
+        isPaused = false;
+        stopTimer();
+        
+        if (watchId !== null) {
+          navigator.geolocation.clearWatch(watchId);
+          watchId = null;
+        }
+        
+        // Actualizar botones
+        document.getElementById('startBtn').disabled = false;
+        document.getElementById('pauseBtn').disabled = true;
+        this.disabled = true;
+        document.getElementById('pauseBtn').innerHTML = '<i class="fas fa-pause"></i>';
+        
+        showToast('Seguimiento detenido', 'info');
+        
+        // Guardar en historial
+        saveToHistory();
+      });
+    }
+    
+    // Guardar en historial
+    function saveToHistory() {
+      const historyItem = {
+        date: new Date().toISOString(),
+        distance: distance,
+        time: document.getElementById('time').textContent,
+        type: document.getElementById('trainingType').value
+      };
+      
+      let history = JSON.parse(localStorage.getItem('runningHistory') || '[]');
+      history.push(historyItem);
+      
+      // Limitar a 50 registros máximo
+      if (history.length > 50) {
+        history = history.slice(-50);
+      }
+      
+      localStorage.setItem('runningHistory', JSON.stringify(history));
+      
+      updateHistoryList();
+    }
+    
+    // Actualizar lista de historial
+    function updateHistoryList() {
+      const historyList = document.getElementById('historyList');
+      const history = JSON.parse(localStorage.getItem('runningHistory') || '[]');
+      
+      if (history.length === 0) {
+        historyList.innerHTML = '<p class="text-muted">No hay registros previos</p>';
+        return;
+      }
+      
+      historyList.innerHTML = '';
+      history.slice().reverse().forEach(item => {
+        const date = new Date(item.date);
+        const listItem = document.createElement('div');
+        listItem.className = 'd-flex justify-content-between align-items-center py-2 border-bottom';
+        listItem.innerHTML = `
+          <div>
+            <strong>${date.toLocaleDateString()}</strong>
+            <div class="small">${item.type} · ${item.distance.toFixed(2)} km</div>
+          </div>
+          <div class="text-end">
+            <div>${item.time}</div>
+            <div class="small text-muted">${date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
+          </div>
+        `;
+        historyList.appendChild(listItem);
+      });
+    }
+
+    // Iniciar cuando el DOM esté listo
+    document.addEventListener('DOMContentLoaded', function() {
+      initApp();
+      
+      // Verificar si hay preferencia de modo oscuro
+      if (localStorage.getItem('darkMode') === 'true') {
+        document.body.classList.add('dark-mode');
+        document.querySelector('#themeSwitch i').classList.remove('fa-moon');
+        document.querySelector('#themeSwitch i').classList.add('fa-sun');
+      }
+    });
+  </script>
+</body>
+</html>
